@@ -19,20 +19,26 @@ public interface IDecider
 `Decision` = the chosen `Value`, its `Confidence`, the full `Options` distribution, and an
 `Abstained` flag (top probability fell under your threshold → escalate to a human or a bigger model).
 
-## The three engines
+## The engines (Jev and its alternatives, one interface)
 
 | Engine | Class | What it is |
 |---|---|---|
-| **Cloud** | `JevDecider` | `POST https://api.typesafe.ai/v1/systemone`, model `jev-latest`. Typed value + calibrated distribution, one forward pass, 0% malformed. Needs `TYPESAFE_API_KEY` (early-access). |
-| **Local** | `LocalDecider` | A **llama.cpp server** + a **GBNF grammar** built from your options, so the model can only emit one of them. Offline, free, your box. |
+| **Jev (cloud)** | `JevDecider` | TypeSafe's `POST /v1/systemone`, model `jev-latest`. Typed value + calibrated distribution, one forward pass. Needs `TYPESAFE_API_KEY` (early-access). |
+| **open-jev** | `OpenJevDecider` | Wraps [daseinlabs/open-jev](https://github.com/daseinlabs/open-jev) `POST /score` — an MIT, Apple-Silicon (MLX) reproduction of Jev's mechanism: prefill once, score **all options in one padded forward pass**, softmax → a real per-option distribution. The closest self-hosted Jev. |
+| **Structured output** | `OpenAiCompatDecider` | `response_format: json_schema` (strict) over any OpenAI-compatible endpoint — OpenAI, **Azure OpenAI, Ollama, LM Studio, vLLM**. Guaranteed-valid value; **no calibrated distribution** (the honest limitation). |
+| **Local grammar** | `LocalDecider` | A **llama.cpp server** + a **GBNF grammar** from your options, so the model can only emit one of them. Offline, free. |
 | **Fake** | `FakeDecider` | Canned distribution, no model. For unit-testing the code that consumes a decision. |
+
+> **The point:** "constrained output" is a commoditized technique — five engines, one `IDecider`, and your calling code never changes. What's genuinely hard to match is Jev's *calibration + single-pass latency*; `OpenJevDecider` gets closest (real distribution, one pass), `OpenAiCompatDecider` gets you a valid value but not a trustworthy probability.
 
 ## Run it
 
 ```bash
-dotnet test                       # 14 hermetic tests, no network, no key
+dotnet test                       # 22 hermetic tests, no network, no key
 dotnet run --project samples/Sample.Cli -- fake
 dotnet run --project samples/Sample.Cli -- jev      # export TYPESAFE_API_KEY=...
+dotnet run --project samples/Sample.Cli -- openjev  # start daseinlabs/open-jev on :8000 (make serve)
+dotnet run --project samples/Sample.Cli -- openai   # OPENAI_API_KEY + OPENAI_MODEL, or OPENAI_BASE=http://localhost:11434 for Ollama
 dotnet run --project samples/Sample.Cli -- local    # start a llama.cpp server first (below)
 ```
 

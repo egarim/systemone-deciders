@@ -10,10 +10,15 @@ const string ticket = "Hi, I've been trying to connect my Stripe account for 3 d
 
 IDecider decider = engine switch
 {
-    "jev"   => new JevDecider(new HttpClient()),
-    "local" => new LocalDecider(new HttpClient
-                 { BaseAddress = new Uri(Environment.GetEnvironmentVariable("LOCAL_LLM") ?? "http://localhost:8080") }),
-    _        => FakeDecider.Always("technical", 0.82),
+    "jev"     => new JevDecider(new HttpClient()),                                 // TypeSafe Jev (cloud)
+    "openjev" => new OpenJevDecider(new HttpClient                                 // github.com/daseinlabs/open-jev
+                   { BaseAddress = new Uri(Environment.GetEnvironmentVariable("OPENJEV") ?? "http://localhost:8000") }),
+    "openai"  => new OpenAiCompatDecider(new HttpClient                            // OpenAI / Azure / Ollama / LM Studio / vLLM
+                   { BaseAddress = new Uri(Environment.GetEnvironmentVariable("OPENAI_BASE") ?? "https://api.openai.com/") },
+                   model: Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o-mini"),
+    "local"   => new LocalDecider(new HttpClient                                   // llama.cpp + GBNF grammar
+                   { BaseAddress = new Uri(Environment.GetEnvironmentVariable("LOCAL_LLM") ?? "http://localhost:8080") }),
+    _          => FakeDecider.Always("technical", 0.82),                           // no model, for tests/demos
 };
 
 var d = await decider.ChooseAsync(ticket, "Which team should handle this?", teams, abstainBelow: 0.6);
